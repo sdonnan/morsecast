@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 from math import sin, pi, ceil, floor
-import wave
 import struct
 
 ELEM_IN_WORD = 50  # 50 elements in 'PARIS '
@@ -194,8 +193,9 @@ class CodeRender():
 
 if __name__ == '__main__':
     import argparse
-    import sys
     import os
+    import sys
+    import wave
 
     parser = argparse.ArgumentParser(description='Turn text into morse code')
     parser.add_argument('-t','--tone',default=500,type=int,help='CW tone in Hz')
