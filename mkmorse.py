@@ -194,6 +194,7 @@ class CodeRender():
 if __name__ == '__main__':
     import argparse
     import os
+    import subprocess
     import sys
     import wave
 
@@ -204,6 +205,7 @@ if __name__ == '__main__':
     parser.add_argument('-c','--char-speed',default=None,type=float,
                         help='CW character speed in WPM if different from overall speed')
     parser.add_argument('--skip',action='store_true',help='Skip hard punctuation in source file')
+    parser.add_argument('--wav',action='store_true',help='Output a raw wave file instead of encoding ogg')
     parser.add_argument('-o','--output',default=None,help='Output file if default not desired')
     parser.add_argument('input', nargs='?', default=sys.stdin, type=argparse.FileType('r'),
                         help='Input text file (invalid chars ignored)')
@@ -225,7 +227,7 @@ if __name__ == '__main__':
         exit(1)
     if not args.output:
         if args.input != sys.stdin:
-            args.output = os.path.splitext(args.input.name)[0] + '.wav'
+            args.output = os.path.splitext(args.input.name)[0] + ('.wav' if args.wav else '.ogg')
         else:
             print('You must specify --output when using stdin')
             exit(1)
@@ -234,12 +236,31 @@ if __name__ == '__main__':
                     wpm = args.speed,
                     chr_wpm = args.char_speed)
 
-    f = wave.open(args.output,'w')
-    f.setframerate(44100)
-    f.setnchannels(1)
-    f.setsampwidth(2)
+    if args.wav:
+        f = wave.open(args.output,'w')
+        f.setframerate(44100)
+        f.setnchannels(1)
+        f.setsampwidth(2)
+        write = lambda x: f.writeframes(x)
+        close = lambda: f.close()
+    else:
+        sp = subprocess.Popen([
+                'oggenc',
+                '-o',args.output,
+                '--raw-chan','1',
+                '-q','10',
+                '-'
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        write = lambda x: sp.stdin.write(x)
+        def close():
+            sp.stdin.close()
+            sp.wait()
 
     for word in iter(TextSanitizer(args.input, args.skip)):
-        f.writeframes(cr.render(' ' + word))
+        write(cr.render(' ' + word))
 
-    f.close()
+    close()
