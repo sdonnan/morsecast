@@ -37,7 +37,7 @@ Article = namedtuple('Article', [
 
 FEED = 'https://theconversation.com/us/technology/articles.atom'
 ATTR = 'The Conversation CC BY-ND'
-ME = 'http://192.168.1.117:8000'
+ME = 'http://morsecasts.s3-website.us-east-2.amazonaws.com'
 
 AUDIO_FOLDER = pathlib.PurePath('audio')
 
@@ -55,6 +55,7 @@ def mkpath(article_id, total_wpm, char_wpm, freq, trunc):
                         int(freq),
                         'T' if trunc else ''))
 
+# this is now unused because length is supposed to be filesize
 def get_ogg_len(fname):
     out = subprocess.run(['ogginfo',fname], stdout=PIPE, stderr=DEVNULL).stdout
     for line in out.decode().split('\n'):
@@ -77,7 +78,7 @@ def update(feed_url, feed_output, total_wpm, char_wpm, freq, only_intro=True):
     # get the feed
     xml = urllib.request.urlopen(FEED)
     soup = BeautifulSoup(xml, 'xml')
-    soup.feed.title.string = soup.feed.title.get_text() + ' - Morsecast'
+    soup.feed.title.string = soup.feed.title.get_text() + ' - Morsecast {}/{}WPM'.format(total_wpm, char_wpm)
 
     # the feed has articles as html content, we parse them here
     for entry in soup.feed.find_all('entry'):
@@ -124,11 +125,30 @@ def update(feed_url, feed_output, total_wpm, char_wpm, freq, only_intro=True):
         tag['type'] = 'audio/ogg'
         tag['title'] = 'Morse Code'
         tag['href'] = ME + '/' + pathlib.PurePath(af_name).as_posix()
-        try: tag['length'] = get_ogg_len(af_name)
+        try: tag['length'] = os.path.getsize(af_name)
         except Exception as e: print(e)
         entry.insert(0,tag)
 
     with open(feed_output,'w') as f: f.write(str(soup))
+    return used_files
 
 if __name__=='__main__':
-    update(FEED, 'tech_7-25.atom', 7, 25, 700, True)
+
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Create morsecasts')
+    parser.add_argument('-d','--dir',default='.', help='Working directory')
+
+    args = parser.parse_args()
+
+    os.chdir(args.dir)
+
+    # hard coded config here kind of stinks
+    files = update(FEED, 'tech_7-25.atom', 7, 25, 700, True)
+
+    # remove old files
+    for f in os.listdir(str(AUDIO_FOLDER)):
+        fullpath = os.path.join(str(AUDIO_FOLDER),f)
+        if fullpath not in files:
+            print('Removing {}'.format(fullpath))
+            os.remove(fullpath)
