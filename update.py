@@ -9,34 +9,23 @@ on other feeds.
 Audio files are generated with names that are the article ID with
 the morse parameters applied to the end.
 
-This is a giant hack. Don't learn from this.
+This is a giant hack. Don't learn how to write Python from this.
 '''
 
 from bs4 import BeautifulSoup
-from collections import namedtuple
+from datetime import timedelta
 from mkmorse import CodeRender, TextSanitizer
 from subprocess import DEVNULL, PIPE
 import hashlib
 import io
-import re
 import os
 import pathlib
+import re
 import subprocess
 import unicodedata
 import urllib.request
 
-Article = namedtuple('Article', [
-    'id',
-    'title',
-    'url',
-    'brief',
-    'author',
-    'date',
-    'content'
-])
-
 FEED = 'https://theconversation.com/us/technology/articles.atom'
-ATTR = 'The Conversation CC BY-ND'
 ME = 'http://morsecasts.s3-website.us-east-2.amazonaws.com'
 
 AUDIO_FOLDER = pathlib.PurePath('audio')
@@ -55,7 +44,6 @@ def mkpath(article_id, total_wpm, char_wpm, freq, trunc):
                         int(freq),
                         'T' if trunc else ''))
 
-# this is now unused because length is supposed to be filesize
 def get_ogg_len(fname):
     out = subprocess.run(['ogginfo',fname], stdout=PIPE, stderr=DEVNULL).stdout
     for line in out.decode().split('\n'):
@@ -65,7 +53,8 @@ def get_ogg_len(fname):
             time = int(float(m.group('s')))
             if m.group('h'): time += int(m.group('h')) * 60 * 60
             if m.group('m'): time += int(m.group('m')) * 60
-            return time
+            return timedelta(seconds=time)
+    raise ValueError('Output of ogginfo was unparseable')
 
 def update(feed_url, feed_output, total_wpm, char_wpm, freq, only_intro=True):
 
@@ -101,6 +90,7 @@ def update(feed_url, feed_output, total_wpm, char_wpm, freq, only_intro=True):
 
         article = '\n'.join(article_paras)
         entry.content.string = article
+        entry.content['type'] = 'text'
 
         # determine which articles need audio generated
         af_name = mkpath(article_id, total_wpm, char_wpm, freq, only_intro)
@@ -128,7 +118,17 @@ def update(feed_url, feed_output, total_wpm, char_wpm, freq, only_intro=True):
         try: tag['length'] = os.path.getsize(af_name)
         except Exception as e: print(e)
         entry.insert(0,tag)
+        try:
+            length = get_ogg_len(af_name)
+            entry.summary.string += ' ({})'.format(str(length))
+        # Atom readers don't seem to pay attention to this tag
+        #    tag = soup.new_tag('itunes:duration')
+        #    tag.string = '0' + str(length) # will explode for podcasts 10 hours and longer. Oh well
+        #    entry.insert(0,tag)
+        except Exception as e: print(e)
 
+    # add the itunes namespace
+    # soup.feed['xmlns:itunes'] = 'http://www.itunes.com/dtds/podcast-1.0.dtd'
     with open(feed_output,'w') as f: f.write(str(soup))
     return used_files
 
@@ -143,8 +143,9 @@ if __name__=='__main__':
 
     os.chdir(args.dir)
 
-    # hard coded config here kind of stinks
+    # hard coded config here is a bummer but I don't have time to sort out a config file
     files = update(FEED, 'tech_7-25.atom', 7, 25, 700, True)
+    files.extend(update(FEED, 'tech_25-25.atom', 25, 25, 700, True))
 
     # remove old files
     for f in os.listdir(str(AUDIO_FOLDER)):
