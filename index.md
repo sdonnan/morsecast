@@ -18,7 +18,7 @@ overall pace.
 
 The following table lists the available feeds. Others available upon request. A
 good method for requesting other speeds would be to open an issue on
-[Github](https://github.com/sdonnan/morsecasts).
+[Github](https://github.com/sdonnan/morsecast).
 
 Effective WPM   Character WPM   Tone Frequency   Source                                                        Atom Feed
 -------------   --------------  --------------   ------                                                        ----------
