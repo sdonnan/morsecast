@@ -121,42 +121,40 @@ class CodeRender():
         if output_bits != 16: raise NotImplementedError('We only support 16-bit signed output')
         self._sample_rate = output_hz
         self._output_bits = output_bits
-        self._maxv = 2**(output_bits - 1) - 1 # signed output
+        self._maxv = int((2**(output_bits - 1) - 1) * .9) # signed output
 
         if not chr_wpm: chr_wpm = wpm
         chr_elem_dur = 60 / (ELEM_IN_WORD * chr_wpm) # get sound element in seconds
+        self.chr_elem_dur = chr_elem_dur
         wrd_elem_dur = 60 / (QUIET_IN_WORD * wpm) - SND_IN_WORD / QUIET_IN_WORD * chr_elem_dur
 
         taper_dur = taper * chr_elem_dur
 
         self.dit = self.mksnd(freq, chr_elem_dur * ELEMS_PER_DIT, taper_dur)
-        self.dah = self.mksnd(freq, chr_elem_dur * ELEMS_PER_DAH, taper_dur)
+        self.dah = self.mksnd(freq, chr_elem_dur * ELEMS_PER_DAH * 5.0/6.0, taper_dur)
+        print(chr_elem_dur * ELEMS_PER_DIT, chr_elem_dur * ELEMS_PER_DAH)
+        print(len(self.dit), len(self.dah))
         self.intra_chr = self.mkquiet(chr_elem_dur * ELEMS_INTRA_CHAR)
-        self.inter_chr = self.mkquiet(wrd_elem_dur * ELEMS_INTER_CHAR)
-        self.inter_wrd = self.mkquiet(wrd_elem_dur * ELEMS_INTER_WORD)
+        self.inter_chr = self.mkquiet(wrd_elem_dur * (ELEMS_INTER_CHAR - ELEMS_INTRA_CHAR))
+        self.inter_wrd = self.mkquiet(wrd_elem_dur * (ELEMS_INTER_WORD - ELEMS_INTRA_CHAR))
 
     def mksnd(self, freq, dur, taper_dur=0):
         '''Make a normalized floating point array for a sound a freq for dur
            seconds at sample rate and ramp magnitude over taper_dur start and end'''
 
-        if taper_dur * 2 > dur: raise ValueError('Taper duration must be less than sound duration')
-
-        data = [0] * ceil(self._sample_rate * dur)
+        from blim_sig import bandwidth_limit
+        on_dur = self._sample_rate * dur
+        data_base = [0.0] * ceil(on_dur/2) + \
+                    [1.0] * ceil(on_dur) + \
+                    [0.0] * ceil(on_dur/2)
+        data = bandwidth_limit(data_base, self._sample_rate, 15)
+        # from pylab import plot,show
+        # plot(data)
+        # show()
         sample_period = 1.0/self._sample_rate
-        taper_data = [1.0] * ceil(self._sample_rate * (taper_dur))
-        taper_to = len(taper_data)
-        taper_from = len(data) - taper_to
-
-        if taper_data:
-            taper_freq = 1.0 / (4.0 * taper_dur)
-            for idx in range(len(taper_data)):
-                taper_data[idx] = sin(2 * pi * taper_freq * sample_period * idx)
 
         for idx in range(len(data)):
-            if idx < taper_to: scale = taper_data[idx]
-            elif idx > taper_from: scale = taper_data[taper_from - idx]
-            else: scale = 1.0
-            data[idx] = int(self._maxv * scale * sin(2 * pi * freq * sample_period * idx))
+            data[idx] = int(data[idx] * self._maxv * sin(2 * pi * freq * sample_period * idx))
 
         return self.pack(data)
 
@@ -181,10 +179,8 @@ class CodeRender():
                 for idx, m in enumerate(morse):
                     if m == '.':
                         output.append(self.dit)
-                        if idx != last: output.append(self.intra_chr)
                     elif m == '-':
                         output.append(self.dah)
-                        if idx != last: output.append(self.intra_chr)
                     else: raise RuntimeError('This should never happen')
         return b''.join(output)
 
