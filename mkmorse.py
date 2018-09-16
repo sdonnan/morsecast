@@ -131,7 +131,7 @@ class CodeRender():
         taper_dur = taper * chr_elem_dur
 
         self.dit = self.mksnd(freq, chr_elem_dur * ELEMS_PER_DIT, taper_dur)
-        self.dah = self.mksnd(freq, chr_elem_dur * ELEMS_PER_DAH * 5.0/6.0, taper_dur)
+        self.dah = self.mksnd(freq, chr_elem_dur * ELEMS_PER_DAH, taper_dur)
         print(chr_elem_dur * ELEMS_PER_DIT, chr_elem_dur * ELEMS_PER_DAH)
         print(len(self.dit), len(self.dah))
         self.intra_chr = self.mkquiet(chr_elem_dur * ELEMS_INTRA_CHAR)
@@ -144,13 +144,14 @@ class CodeRender():
 
         from blim_sig import bandwidth_limit
         on_dur = self._sample_rate * dur
-        data_base = [0.0] * ceil(on_dur/2) + \
+        elem_dur = self._sample_rate * self.chr_elem_dur
+        data_base = [0.0] * ceil(elem_dur/2) + \
                     [1.0] * ceil(on_dur) + \
-                    [0.0] * ceil(on_dur/2)
-        data = bandwidth_limit(data_base, self._sample_rate, 15)
-        # from pylab import plot,show
-        # plot(data)
-        # show()
+                    [0.0] * ceil(elem_dur/2)
+        data = bandwidth_limit(data_base, self._sample_rate, 15, flen=int(elem_dur * ELEMS_PER_DIT))
+        #from pylab import plot,show
+        #plot(data)
+        #show()
         sample_period = 1.0/self._sample_rate
 
         for idx in range(len(data)):
@@ -263,5 +264,6 @@ if __name__ == '__main__':
 
     for word in iter(TextSanitizer(args.input, args.skip)):
         write(cr.render(' ' + word))
+    write(cr.render(' '))
 
     close()
