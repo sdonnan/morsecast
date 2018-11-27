@@ -148,7 +148,7 @@ class CodeRender():
         data_base = [0.0] * ceil(elem_dur/2) + \
                     [1.0] * ceil(on_dur) + \
                     [0.0] * ceil(elem_dur/2)
-        data = bandwidth_limit(data_base, self._sample_rate, 15, flen=int(elem_dur * ELEMS_PER_DIT))
+        data = bandwidth_limit(data_base, self._sample_rate, 30, flen=int(elem_dur * ELEMS_PER_DIT))
         #from pylab import plot,show
         #plot(data)
         #show()
