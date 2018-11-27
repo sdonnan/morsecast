@@ -210,6 +210,11 @@ if __name__ == '__main__':
     parser.add_argument('input', nargs='?', default=sys.stdin, type=argparse.FileType('r'),
                         help='Input text file (invalid chars ignored)')
 
+    if len(sys.argv)==1:
+        parser.print_help(sys.stderr)
+        sys.exit(1)
+
+
     args = parser.parse_args()
 
     if args.char_speed:
